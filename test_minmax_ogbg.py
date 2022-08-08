@@ -129,9 +129,9 @@ def run(args):
             reg = reg.mean()
 
 
-
+            # back propagation
             view_loss = model.calc_loss(x, x_aug) - (args.reg_lambda * reg)
-            view_loss_all += view_loss.item() * batch.num_graphs
+            view_loss_all += view_loss.item() * batch.num_graphs # updating augmenter params
             reg_all += reg.item()
             # gradient ascent formulation
             (-view_loss).backward()
@@ -144,7 +144,7 @@ def run(args):
             model.zero_grad()
 
             x, _ = model(batch.batch, batch.x, batch.edge_index, batch.edge_attr, None)
-            edge_logits = view_learner(batch.batch, batch.x, batch.edge_index, batch.edge_attr)
+            edge_logits = view_learner(batch.batch, batch.x, batch.edge_index, batch.edge_attr) # get edge bernoulli parameters
 
 
             temperature = 1.0
