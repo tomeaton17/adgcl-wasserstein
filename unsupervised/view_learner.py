@@ -33,5 +33,5 @@ class ViewLearner(torch.nn.Module):
 
 		edge_emb = torch.cat([emb_src, emb_dst], 1)
 		edge_logits = self.mlp_edge_model(edge_emb)
-		print("B param:", edge_logits)
+
 		return edge_logits

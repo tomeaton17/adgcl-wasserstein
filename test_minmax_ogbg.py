@@ -95,15 +95,17 @@ def run(args):
 
             x, _ = model(batch.batch, batch.x, batch.edge_index, batch.edge_attr, None)
 
-            edge_logits = view_learner(batch.batch, batch.x, batch.edge_index, batch.edge_attr)
+            edge_logits = view_learner(batch.batch, batch.x, batch.edge_index, batch.edge_attr) # Not actually bernoulli parameters
 
             temperature = 1.0
             bias = 0.0 + 0.0001  # If bias is 0, we run into problems
-            eps = (bias - (1 - bias)) * torch.rand(edge_logits.size()) + (1 - bias)
+            eps = (bias - (1 - bias)) * torch.rand(edge_logits.size()) + (1 - bias) # create scaled vector of random variables (0,1) same size and edge_logits
+            # Gumbel-Max reparameterisation
             gate_inputs = torch.log(eps) - torch.log(1 - eps)
             gate_inputs = gate_inputs.to(device)
             gate_inputs = (gate_inputs + edge_logits) / temperature
-            batch_aug_edge_weight = torch.sigmoid(gate_inputs).squeeze()
+            batch_aug_edge_weight = torch.sigmoid(gate_inputs).squeeze() # edge drop probabilities
+            print("pe:",batch_aug_edge_weight)
 
             x_aug, _ = model(batch.batch, batch.x, batch.edge_index, batch.edge_attr, batch_aug_edge_weight)
 
