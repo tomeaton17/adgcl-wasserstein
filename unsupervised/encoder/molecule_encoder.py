@@ -48,6 +48,7 @@ class MoleculeEncoder(torch.nn.Module):
 				if m.bias is not None:
 					m.bias.data.fill_(0.0)
 
+	# in this case it seems like x is pyg object attribute, think its node feature
 	def forward(self, batch, x, edge_index, edge_attr, edge_weight=None):
 		x = self.atom_encoder(x)
 		edge_attr = self.bond_encoder(edge_attr)

@@ -1,3 +1,5 @@
+# should be able to get graph laplacians using get_laplacian (pytorch) and edge_weight can use get item to get individual sample from batch
+
 import argparse
 import logging
 import random
@@ -88,14 +90,17 @@ def run(args):
             # set up
             batch = batch.to(device)
 
+            print(batch.size())
+
             # train view to maximize contrastive loss
             view_learner.train()
             view_learner.zero_grad()
             model.eval()
 
+            # edge_index should be the adjacency, other params can be used to reconstruct pyg graph and then plot?
             x, _ = model(batch.batch, batch.x, batch.edge_index, batch.edge_attr, None)
 
-            edge_logits = view_learner(batch.batch, batch.x, batch.edge_index, batch.edge_attr) # Not actually bernoulli parameters
+            edge_logits = view_learner(batch.batch, batch.x, batch.edge_index, batch.edge_attr) # Not actually bernoulli parameters see paper
 
             temperature = 1.0
             bias = 0.0 + 0.0001  # If bias is 0, we run into problems
@@ -104,8 +109,7 @@ def run(args):
             gate_inputs = torch.log(eps) - torch.log(1 - eps)
             gate_inputs = gate_inputs.to(device)
             gate_inputs = (gate_inputs + edge_logits) / temperature
-            batch_aug_edge_weight = torch.sigmoid(gate_inputs).squeeze() # edge drop probabilities
-            print("pe:",batch_aug_edge_weight)
+            batch_aug_edge_weight = torch.sigmoid(gate_inputs).squeeze() # edge drop probabilities [0,1]
 
             x_aug, _ = model(batch.batch, batch.x, batch.edge_index, batch.edge_attr, batch_aug_edge_weight)
 

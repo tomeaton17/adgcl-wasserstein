@@ -9,7 +9,7 @@ from torch_sparse import SparseTensor
 
 from unsupervised.convs.inits import reset
 
-
+# Graph Isomorphism Conv, essentially improved GNN
 class GINEConv(MessagePassing):
     def __init__(self, nn: Callable, eps: float = 0., train_eps: bool = False,
                  **kwargs):
@@ -50,6 +50,7 @@ class GINEConv(MessagePassing):
         return self.nn(out)
 
     def message(self, x_j: Tensor, edge_attr: Tensor, edge_weight) -> Tensor:
+        # seems like it is not actually a probability instead just a scaling factor.
         return F.relu(x_j + edge_attr) if edge_weight is None else F.relu(x_j + edge_attr) * edge_weight.view(-1, 1)
 
 
