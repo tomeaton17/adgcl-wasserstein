@@ -90,8 +90,7 @@ def run(args):
             # set up
             batch = batch.to(device)
 
-            print(batch.size())
-
+            print(batch.edge_index[0])
             # train view to maximize contrastive loss
             view_learner.train()
             view_learner.zero_grad()
