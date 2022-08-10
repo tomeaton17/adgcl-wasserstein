@@ -9,3 +9,4 @@ scipy
 ogb
 matplotlib
 rdkit
+networkx

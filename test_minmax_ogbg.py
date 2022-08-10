@@ -10,14 +10,32 @@ from ogb.graphproppred import Evaluator
 from ogb.graphproppred import PygGraphPropPredDataset
 from sklearn.linear_model import Ridge, LogisticRegression
 from torch_geometric.data import DataLoader
+from torch_geometric.utils import get_laplacian
 from torch_geometric.transforms import Compose
 from torch_scatter import scatter
+import networkx as nx
+import numpy.linalg as lg
+import copy
+import scipy.linalg as slg
 
 from unsupervised.embedding_evaluation import EmbeddingEvaluation
 from unsupervised.encoder import MoleculeEncoder
 from unsupervised.learning import GInfoMinMax
 from unsupervised.utils import initialize_edge_weight
 from unsupervised.view_learner import ViewLearner
+
+def wass_dist_(A, B):
+    n = len(A)
+    l1_tilde = A + np.ones([n,n])/n #adding 1 to zero eigenvalue; does not change results, but is faster and more stable
+    print("got here")
+    l2_tilde = B + np.ones([n,n])/n #adding 1 to zero eigenvalue; does not change results, but is faster and more stable
+    print("got here1")
+    s1_tilde = lg.inv(l1_tilde)
+    print("got here2")
+    s2_tilde = lg.inv(l2_tilde)
+    Root_1= slg.sqrtm(s1_tilde)
+    Root_2= slg.sqrtm(s2_tilde)
+    return np.trace(s1_tilde) + np.trace(s2_tilde) - 2*np.trace(slg.sqrtm(Root_1 @ s2_tilde @ Root_1)) 
 
 
 def setup_seed(seed):
@@ -90,7 +108,6 @@ def run(args):
             # set up
             batch = batch.to(device)
 
-            print(batch.edge_index[0])
             # train view to maximize contrastive loss
             view_learner.train()
             view_learner.zero_grad()
@@ -98,6 +115,7 @@ def run(args):
 
             # edge_index should be the adjacency, other params can be used to reconstruct pyg graph and then plot?
             x, _ = model(batch.batch, batch.x, batch.edge_index, batch.edge_attr, None)
+            l = get_laplacian(batch.edge_index[0])
 
             edge_logits = view_learner(batch.batch, batch.x, batch.edge_index, batch.edge_attr) # Not actually bernoulli parameters see paper
 
@@ -111,7 +129,8 @@ def run(args):
             batch_aug_edge_weight = torch.sigmoid(gate_inputs).squeeze() # edge drop probabilities [0,1]
 
             x_aug, _ = model(batch.batch, batch.x, batch.edge_index, batch.edge_attr, batch_aug_edge_weight)
-
+            l_aug = get_laplacian(batch.edge_index[0], batch_aug_edge_weight[0])
+            print(wass_dist_(l, l_aug))
             # regularization
 
             row, col = batch.edge_index
