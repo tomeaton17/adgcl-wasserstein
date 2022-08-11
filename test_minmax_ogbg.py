@@ -3,6 +3,7 @@
 import argparse
 import logging
 import random
+from networkx.algorithms.graph_hashing import weisfeiler_lehman_graph_hash
 
 import numpy as np
 import torch
@@ -10,7 +11,7 @@ from ogb.graphproppred import Evaluator
 from ogb.graphproppred import PygGraphPropPredDataset
 from sklearn.linear_model import Ridge, LogisticRegression
 from torch_geometric.data import DataLoader
-from torch_geometric.utils import get_laplacian
+from torch_geometric.utils import get_laplacian,to_scipy_sparse_matrix, to_networkx
 from torch_geometric.transforms import Compose
 from torch_scatter import scatter
 import networkx as nx
@@ -27,11 +28,8 @@ from unsupervised.view_learner import ViewLearner
 def wass_dist_(A, B):
     n = len(A)
     l1_tilde = A + np.ones([n,n])/n #adding 1 to zero eigenvalue; does not change results, but is faster and more stable
-    print("got here")
     l2_tilde = B + np.ones([n,n])/n #adding 1 to zero eigenvalue; does not change results, but is faster and more stable
-    print("got here1")
     s1_tilde = lg.inv(l1_tilde)
-    print("got here2")
     s2_tilde = lg.inv(l2_tilde)
     Root_1= slg.sqrtm(s1_tilde)
     Root_2= slg.sqrtm(s2_tilde)
@@ -115,7 +113,9 @@ def run(args):
 
             # edge_index should be the adjacency, other params can be used to reconstruct pyg graph and then plot?
             x, _ = model(batch.batch, batch.x, batch.edge_index, batch.edge_attr, None)
-            l = get_laplacian(batch.edge_index[0])
+            weights = torch.ones(batch[0].edge_index.size(dim=1), dtype=torch.float, device="cuda")
+            ei, ew = get_laplacian(batch[0].edge_index, weights)
+            l = to_scipy_sparse_matrix(ei, ew).toarray()
 
             edge_logits = view_learner(batch.batch, batch.x, batch.edge_index, batch.edge_attr) # Not actually bernoulli parameters see paper
 
@@ -129,7 +129,17 @@ def run(args):
             batch_aug_edge_weight = torch.sigmoid(gate_inputs).squeeze() # edge drop probabilities [0,1]
 
             x_aug, _ = model(batch.batch, batch.x, batch.edge_index, batch.edge_attr, batch_aug_edge_weight)
-            l_aug = get_laplacian(batch.edge_index[0], batch_aug_edge_weight[0])
+            weights_aug = batch_aug_edge_weight[0:batch[0].edge_index.size(dim=1)]
+            print(weights)
+            """for i in range(weights.size(dim=0)):
+              if weights[i] < 0.98:
+                weights[i] = 0
+              else:
+                weights[i] = 1"""
+            ei, ew = get_laplacian(batch[0].edge_index, weights)
+            ew = ew.detach()
+            l_aug = to_scipy_sparse_matrix(ei, ew).toarray()
+            print("l_aug",l_aug)
             print(wass_dist_(l, l_aug))
             # regularization
 
