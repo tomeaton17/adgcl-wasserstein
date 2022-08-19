@@ -1,5 +1,3 @@
-# should be able to get graph laplacians using get_laplacian (pytorch) and edge_weight can use get item to get individual sample from batch
-
 import argparse
 import logging
 import random
@@ -93,6 +91,7 @@ def run(args):
     model_losses = []
     view_losses = []
     view_regs = []
+    view_regs_wass = []
     valid_curve = []
     test_curve = []
     train_curve = []
@@ -113,9 +112,7 @@ def run(args):
 
             # edge_index should be the adjacency, other params can be used to reconstruct pyg graph and then plot?
             x, _ = model(batch.batch, batch.x, batch.edge_index, batch.edge_attr, None)
-            weights = torch.ones(batch[0].edge_index.size(dim=1), dtype=torch.float, device="cuda")
-            ei, ew = get_laplacian(batch[0].edge_index, weights)
-            l = to_scipy_sparse_matrix(ei, ew).toarray()
+            
 
             edge_logits = view_learner(batch.batch, batch.x, batch.edge_index, batch.edge_attr) # Not actually bernoulli parameters see paper
 
@@ -129,18 +126,7 @@ def run(args):
             batch_aug_edge_weight = torch.sigmoid(gate_inputs).squeeze() # edge drop probabilities [0,1]
 
             x_aug, _ = model(batch.batch, batch.x, batch.edge_index, batch.edge_attr, batch_aug_edge_weight)
-            weights_aug = batch_aug_edge_weight[0:batch[0].edge_index.size(dim=1)]
-            print(weights)
-            """for i in range(weights.size(dim=0)):
-              if weights[i] < 0.98:
-                weights[i] = 0
-              else:
-                weights[i] = 1"""
-            ei, ew = get_laplacian(batch[0].edge_index, weights)
-            ew = ew.detach()
-            l_aug = to_scipy_sparse_matrix(ei, ew).toarray()
-            print("l_aug",l_aug)
-            print(wass_dist_(l, l_aug))
+            
             # regularization
 
             row, col = batch.edge_index
@@ -162,11 +148,31 @@ def run(args):
             reg = torch.stack(reg)
             reg = reg.mean()
 
+            reg_wass = []
+            counter = 0
+            for i in range(batch):
+                weights = torch.ones(batch[i].edge_index.size(dim=1), dtype=torch.float, device="cuda")
+                ei, ew = get_laplacian(batch[i].edge_index, weights)
+                l = to_scipy_sparse_matrix(ei, ew).toarray()
+                stop = batch[0].edge_index.size(dim=1)
+                weights_aug = batch_aug_edge_weight[counter:stop]
+                counter = stop
+                ei, ew = get_laplacian(batch[i].edge_index, weights_aug)
+                ew = ew.detach()
+                l_aug = to_scipy_sparse_matrix(ei, ew).toarray()
+                reg_wass.append(wass_dist_(l, l_aug))
+
+            reg_wass = torch.stack(reg_wass)
+            reg_wass = reg.mean()
+            print(reg_wass)
+
+
 
             # back propagation
-            view_loss = model.calc_loss(x, x_aug) - (args.reg_lambda * reg)
+            view_loss = model.calc_loss(x, x_aug) - (args.reg_lambda * reg) - (args.reg_lambda * reg_wass)
             view_loss_all += view_loss.item() * batch.num_graphs # updating augmenter params
             reg_all += reg.item()
+            reg_all_wass += reg_wass.item()
             # gradient ascent formulation
             (-view_loss).backward()
             view_optimizer.step()
@@ -200,11 +206,13 @@ def run(args):
         fin_model_loss = model_loss_all / len(dataloader)
         fin_view_loss = view_loss_all / len(dataloader)
         fin_reg = reg_all / len(dataloader)
+        fin_reg_wass = reg_all_wass / len(dataloader)
 
-        logging.info('Epoch {}, Model Loss {}, View Loss {}, Reg {}'.format(epoch, fin_model_loss, fin_view_loss, fin_reg))
+        logging.info('Epoch {}, Model Loss {}, View Loss {}, Reg {}, Wass Reg {}'.format(epoch, fin_model_loss, fin_view_loss, fin_reg, fin_reg_wass))
         model_losses.append(fin_model_loss)
         view_losses.append(fin_view_loss)
         view_regs.append(fin_reg)
+        view_regs_wass.append(fin_reg_wass)
 
         model.eval()
 
