@@ -9,7 +9,7 @@ from ogb.graphproppred import Evaluator
 from ogb.graphproppred import PygGraphPropPredDataset
 from sklearn.linear_model import Ridge, LogisticRegression
 from torch_geometric.data import DataLoader
-from torch_geometric.utils import get_laplacian,to_scipy_sparse_matrix, to_networkx
+from torch_geometric.utils import get_laplacian,to_scipy_sparse_matrix, to_networkx, to_undirected
 from torch_geometric.transforms import Compose
 from torch_scatter import scatter
 import networkx as nx
@@ -127,6 +127,9 @@ def run(args):
             gate_inputs = (gate_inputs + edge_logits) / temperature
             batch_aug_edge_weight = torch.sigmoid(gate_inputs).squeeze() # edge drop probabilities [0,1]
 
+            #indices, weights = to_undirected(batch.edge_index, batch_aug_edge_weight, reduce="min")
+
+            #x_aug, _ = model(batch.batch, batch.x, indices, batch.edge_attr, weights)
             x_aug, _ = model(batch.batch, batch.x, batch.edge_index, batch.edge_attr, batch_aug_edge_weight)
             
             # regularization
