@@ -51,7 +51,7 @@ def run(args):
     setup_seed(args.seed)
 
     evaluator = Evaluator(name=args.dataset)
-    print("got here")
+    print(evaluator.eval_metric)
     my_transforms = Compose([initialize_edge_weight])
     dataset = PygGraphPropPredDataset(name=args.dataset, root='./original_datasets/', transform=my_transforms)
     print("got here")
