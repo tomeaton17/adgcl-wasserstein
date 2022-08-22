@@ -44,7 +44,7 @@ def wass_dist_(A, B):
 
 
 def run(args):
-    logging.basicConfig(level=logging.INFO, stream = sys.stdout, format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S', handlers=[logging.StreamHandler(sys.stdout)])
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info("Using Device: %s" % device)
     logging.info("Seed: %d" % args.seed)
