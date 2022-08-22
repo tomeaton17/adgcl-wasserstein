@@ -11,6 +11,10 @@ from torch_geometric.utils import get_laplacian,to_scipy_sparse_matrix, to_netwo
 from torch_geometric.transforms import Compose
 from torch_scatter import scatter
 
+import numpy.linalg as lg
+import copy
+import scipy.linalg as slg
+
 from datasets import TUDataset, TUEvaluator
 from unsupervised.embedding_evaluation import EmbeddingEvaluation
 from unsupervised.encoder import TUEncoder
@@ -31,8 +35,8 @@ def wass_dist_(A, B):
     n = len(A)
     l1_tilde = A + np.ones([n,n])/n #adding 1 to zero eigenvalue; does not change results, but is faster and more stable
     l2_tilde = B + np.ones([n,n])/n #adding 1 to zero eigenvalue; does not change results, but is faster and more stable
-    s1_tilde = lg.inv(l1_tilde)
-    s2_tilde = lg.inv(l2_tilde)
+    s1_tilde = lg.pinv(l1_tilde)
+    s2_tilde = lg.pinv(l2_tilde)
     Root_1= slg.sqrtm(s1_tilde)
     Root_2= slg.sqrtm(s2_tilde)
     return np.trace(s1_tilde) + np.trace(s2_tilde) - 2*np.trace(slg.sqrtm(Root_1 @ s2_tilde @ Root_1)) 
@@ -65,6 +69,7 @@ def run(args):
                                mlp_edge_model_dim=args.mlp_edge_model_dim).to(device)
     view_optimizer = torch.optim.Adam(view_learner.parameters(), lr=args.view_lr)
     if args.downstream_classifier == "linear":
+        print(dataset.task_type)
         ee = EmbeddingEvaluation(LinearSVC(dual=False, fit_intercept=True), evaluator, dataset.task_type, dataset.num_tasks,
                              device, param_search=True)
     else:
@@ -91,6 +96,7 @@ def run(args):
         model_loss_all = 0
         view_loss_all = 0
         reg_all = 0
+        reg_all_wass = 0
         for batch in dataloader:
             # set up
             batch = batch.to(device)
@@ -112,7 +118,11 @@ def run(args):
             gate_inputs = (gate_inputs + edge_logits) / temperature
             batch_aug_edge_weight = torch.sigmoid(gate_inputs).squeeze()
 
-            x_aug, _ = model(batch.batch, batch.x, batch.edge_index, None, batch_aug_edge_weight)
+            indices, weights = to_undirected(batch.edge_index, batch_aug_edge_weight, reduce="min")
+
+            x_aug, _ = model(batch.batch, batch.x, indices, batch.edge_attr, weights)
+
+            #x_aug, _ = model(batch.batch, batch.x, batch.edge_index, None, batch_aug_edge_weight)
 
             # regularization
 
@@ -137,26 +147,30 @@ def run(args):
 
             reg_wass = []
             counter = 0
-            for i in range(batch):
+            for i, batchx in enumerate(batch):
                 weights = torch.ones(batch[i].edge_index.size(dim=1), dtype=torch.float, device="cuda")
                 ei, ew = get_laplacian(batch[i].edge_index, weights)
-                l = to_scipy_sparse_matrix(ei, ew).toarray()
-                stop = batch[0].edge_index.size(dim=1)
-                weights_aug = batch_aug_edge_weight[counter:stop]
+                l = to_scipy_sparse_matrix(ei, ew).todense()
+                stop = batch[i].edge_index.size(dim=1)
+                weights_aug = batch_aug_edge_weight[counter:counter + stop]
                 counter = stop
                 ei, ew = get_laplacian(batch[i].edge_index, weights_aug)
                 ew = ew.detach()
                 l_aug = to_scipy_sparse_matrix(ei, ew).toarray()
-                reg_wass.append(wass_dist_(l, l_aug))
+                w_dist = wass_dist_(l, l_aug)
+                reg_wass.append(w_dist)
 
-            reg_wass = torch.stack(reg_wass)
+            
+            for i, b in enumerate(reg_wass):
+              reg_wass[i] = reg_wass[i].real
+            reg_wass = torch.FloatTensor(reg_wass)
             reg_wass = reg.mean()
-            print(reg_wass)
 
 
             view_loss = model.calc_loss(x, x_aug) - (args.reg_lambda * reg) - (args.reg_lambda * reg_wass)
             view_loss_all += view_loss.item() * batch.num_graphs
             reg_all += reg.item()
+            reg_all_wass += reg_wass.item()
             # gradient ascent formulation
             (-view_loss).backward()
             view_optimizer.step()
