@@ -169,7 +169,7 @@ def run(args):
             reg_wass = reg.mean()
 
 
-            view_loss = model.calc_loss(x, x_aug) - (args.reg_lambda * reg) - (args.reg_lambda * reg_wass)
+            view_loss = model.calc_loss(x, x_aug) - (args.reg_lambda * reg_wass)
             view_loss_all += view_loss.item() * batch.num_graphs
             reg_all += reg.item()
             reg_all_wass += reg_wass.item()
