@@ -44,11 +44,11 @@ def wass_dist_(A, B):
 
 
 def run(args):
-    logging.basicConfig(filename="wass.log", filemode="w", level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
+    #logging.basicConfig(filename="wass.log", filemode="w", level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    logging.info("Using Device: %s" % device)
-    logging.info("Seed: %d" % args.seed)
-    logging.info(args)
+    print("Using Device: %s" % device)
+    print("Seed: %d" % args.seed)
+    print(args)
     setup_seed(args.seed)
     print("ADGCL WITH WASS")
 
@@ -81,7 +81,7 @@ def run(args):
 
     model.eval()
     train_score, val_score, test_score = ee.kf_embedding_evaluation(model.encoder, dataset)
-    logging.info(
+    print(
         "Before training Embedding Eval Scores: Train: {} Val: {} Test: {}".format(train_score, val_score,
                                                                                          test_score))
 
@@ -207,7 +207,7 @@ def run(args):
         fin_reg = reg_all / len(dataloader)
         fin_reg_wass = reg_all_wass / len(dataloader)
 
-        logging.info('Epoch {}, Model Loss {}, View Loss {}, Reg {}'.format(epoch, fin_model_loss, fin_view_loss, fin_reg))
+        print('Epoch {}, Model Loss {}, View Loss {}, Reg {}'.format(epoch, fin_model_loss, fin_view_loss, fin_reg))
         model_losses.append(fin_model_loss)
         view_losses.append(fin_view_loss)
         view_regs.append(fin_reg)
@@ -217,7 +217,7 @@ def run(args):
 
             train_score, val_score, test_score = ee.kf_embedding_evaluation(model.encoder, dataset)
 
-            logging.info(
+            print(
                 "Metric: {} Train: {} Val: {} Test: {}".format(evaluator.eval_metric, train_score, val_score, test_score))
 
             train_curve.append(train_score)
@@ -231,11 +231,11 @@ def run(args):
         best_val_epoch = np.argmin(np.array(valid_curve))
         best_train = min(train_curve)
 
-    logging.info('FinishedTraining!')
-    logging.info('BestEpoch: {}'.format(best_val_epoch))
-    logging.info('BestTrainScore: {}'.format(best_train))
-    logging.info('BestValidationScore: {}'.format(valid_curve[best_val_epoch]))
-    logging.info('FinalTestScore: {}'.format(test_curve[best_val_epoch]))
+    print('FinishedTraining!')
+    print('BestEpoch: {}'.format(best_val_epoch))
+    print('BestTrainScore: {}'.format(best_train))
+    print('BestValidationScore: {}'.format(valid_curve[best_val_epoch]))
+    print('FinalTestScore: {}'.format(test_curve[best_val_epoch]))
 
 
     return valid_curve[best_val_epoch], test_curve[best_val_epoch]
