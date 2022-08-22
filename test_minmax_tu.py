@@ -7,6 +7,8 @@ import torch
 from sklearn.svm import LinearSVC, SVC
 from torch_geometric.data import DataLoader
 from torch_geometric.transforms import Compose
+from torch_geometric.utils import get_laplacian,to_scipy_sparse_matrix, to_networkx, to_undirected
+from torch_geometric.transforms import Compose
 from torch_scatter import scatter
 
 from datasets import TUDataset, TUEvaluator
@@ -25,6 +27,15 @@ def setup_seed(seed):
     random.seed(seed)
 
 
+def wass_dist_(A, B):
+    n = len(A)
+    l1_tilde = A + np.ones([n,n])/n #adding 1 to zero eigenvalue; does not change results, but is faster and more stable
+    l2_tilde = B + np.ones([n,n])/n #adding 1 to zero eigenvalue; does not change results, but is faster and more stable
+    s1_tilde = lg.inv(l1_tilde)
+    s2_tilde = lg.inv(l2_tilde)
+    Root_1= slg.sqrtm(s1_tilde)
+    Root_2= slg.sqrtm(s2_tilde)
+    return np.trace(s1_tilde) + np.trace(s2_tilde) - 2*np.trace(slg.sqrtm(Root_1 @ s2_tilde @ Root_1)) 
 
 
 def run(args):
@@ -71,6 +82,7 @@ def run(args):
     model_losses = []
     view_losses = []
     view_regs = []
+    view_regs_wass = []
     valid_curve = []
     test_curve = []
     train_curve = []
@@ -123,8 +135,26 @@ def run(args):
             reg = torch.stack(reg)
             reg = reg.mean()
 
+            reg_wass = []
+            counter = 0
+            for i in range(batch):
+                weights = torch.ones(batch[i].edge_index.size(dim=1), dtype=torch.float, device="cuda")
+                ei, ew = get_laplacian(batch[i].edge_index, weights)
+                l = to_scipy_sparse_matrix(ei, ew).toarray()
+                stop = batch[0].edge_index.size(dim=1)
+                weights_aug = batch_aug_edge_weight[counter:stop]
+                counter = stop
+                ei, ew = get_laplacian(batch[i].edge_index, weights_aug)
+                ew = ew.detach()
+                l_aug = to_scipy_sparse_matrix(ei, ew).toarray()
+                reg_wass.append(wass_dist_(l, l_aug))
 
-            view_loss = model.calc_loss(x, x_aug) - (args.reg_lambda * reg)
+            reg_wass = torch.stack(reg_wass)
+            reg_wass = reg.mean()
+            print(reg_wass)
+
+
+            view_loss = model.calc_loss(x, x_aug) - (args.reg_lambda * reg) - (args.reg_lambda * reg_wass)
             view_loss_all += view_loss.item() * batch.num_graphs
             reg_all += reg.item()
             # gradient ascent formulation
@@ -159,11 +189,13 @@ def run(args):
         fin_model_loss = model_loss_all / len(dataloader)
         fin_view_loss = view_loss_all / len(dataloader)
         fin_reg = reg_all / len(dataloader)
+        fin_reg_wass = reg_all_wass / len(dataloader)
 
         logging.info('Epoch {}, Model Loss {}, View Loss {}, Reg {}'.format(epoch, fin_model_loss, fin_view_loss, fin_reg))
         model_losses.append(fin_model_loss)
         view_losses.append(fin_view_loss)
         view_regs.append(fin_reg)
+        view_regs_wass.append(fin_reg_wass)
         if epoch % args.eval_interval == 0:
             model.eval()
 
