@@ -207,8 +207,6 @@ def run(args):
         fin_reg = reg_all / len(dataloader)
         fin_reg_wass = reg_all_wass / len(dataloader)
 
-        print("got here")
-
         print('Epoch {}, Model Loss {}, View Loss {}, Reg {}'.format(epoch, fin_model_loss, fin_view_loss, fin_reg))
         model_losses.append(fin_model_loss)
         view_losses.append(fin_view_loss)
