@@ -51,8 +51,10 @@ def run(args):
     setup_seed(args.seed)
 
     evaluator = Evaluator(name=args.dataset)
+    print("got here")
     my_transforms = Compose([initialize_edge_weight])
     dataset = PygGraphPropPredDataset(name=args.dataset, root='./original_datasets/', transform=my_transforms)
+    print("got here")
 
     split_idx = dataset.get_idx_split()
     train_loader = DataLoader(dataset[split_idx["train"]], batch_size=128, shuffle=True)
