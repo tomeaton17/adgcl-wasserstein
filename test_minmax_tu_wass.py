@@ -49,6 +49,7 @@ def run(args):
     logging.info("Seed: %d" % args.seed)
     logging.info(args)
     setup_seed(args.seed)
+    print("ADGCL WITH WASS")
 
     evaluator = TUEvaluator()
     my_transforms = Compose([initialize_node_features, initialize_edge_weight, set_tu_dataset_y_shape])
