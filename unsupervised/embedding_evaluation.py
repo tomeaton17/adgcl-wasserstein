@@ -41,7 +41,7 @@ class EmbeddingEvaluation():
 			self.gscv_scoring_name = 'neg_mean_absolute_error'
 		elif self.eval_metric == 'rocauc':
 			self.gscv_scoring_name = 'roc_auc'
-		elif self.eval_metric == 'acc':
+		elif self.eval_metric == 'accuracy':
 			self.gscv_scoring_name = 'accuracy'
 		else:
 			raise ValueError('Undefined grid search scoring for metric %s ' % self.eval_metric)
